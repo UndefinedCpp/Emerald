@@ -1,0 +1,2 @@
+# Emerald
+Emerald scriptting language
