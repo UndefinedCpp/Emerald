@@ -41,6 +41,7 @@ namespace LexerMsp
 		TokenType type;
 		string value;
 		int errcode;
+		int line; 
 	} Token;
 	
 	class Lexer
