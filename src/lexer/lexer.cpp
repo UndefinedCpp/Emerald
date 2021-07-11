@@ -33,7 +33,7 @@ std::string operator+ (std::string s, char c)
 namespace LexerMsp
 {
 	using namespace std;
-	// ³õÊ¼»¯´Ê·¨·ÖÎöÆ÷ 
+	// åˆå§‹åŒ–è¯æ³•åˆ†æå™¨ 
 	Lexer::Lexer(string buffer)
 	{
 		buf = new char[SOURCE_MAX];
@@ -45,7 +45,7 @@ namespace LexerMsp
 	{
 		delete[] buf;
 	}
-	// ¶ÁÈ¡token 
+	// è¯»å–token 
 	Token Lexer::read()
 	{
 		Token token;
@@ -53,18 +53,19 @@ namespace LexerMsp
 		
 		while(true)
 		{
-			ch = readChar();	// ¶Á³öÒ»¸ö×Ö·û
+			ch = readChar();	// è¯»å‡ºä¸€ä¸ªå­—ç¬¦
 			if(ch == 0 || ch == EOF)
 			{
 				token.type = EMPTY;
 				token.value = string("<end>");
+				token.line = lineNumber;
 				return token;
 			} 
-			if(ch == '\n')	// »»ĞĞ·û 
+			if(ch == '\n')	// æ¢è¡Œç¬¦ 
 			{
 				this->lineNumber++;
 			}
-			if(!isspace(ch))	// ²»ÊÇ¿Õ¸ñ£¬ÍË³öÑ­»· 
+			if(!isspace(ch))	// ä¸æ˜¯ç©ºæ ¼ï¼Œé€€å‡ºå¾ªç¯ 
 			{
 				break;
 			}
@@ -72,9 +73,9 @@ namespace LexerMsp
 		
 		token.value = token.value + ch;
 		
-		if(isalpha(ch))	// Èç¹ûÊÇ×ÖÄ¸ 
+		if(isalpha(ch))	// å¦‚æœæ˜¯å­—æ¯ 
 		{
-			// ¶ÁÈ¡×Ö·û£¬ÊÇ×ÖÄ¸»òÊı×Ö 
+			// è¯»å–å­—ç¬¦ï¼Œæ˜¯å­—æ¯æˆ–æ•°å­— 
 			while(ch = readChar(), isalnum(ch))
 			{
 				token.value = token.value + ch;
@@ -83,25 +84,28 @@ namespace LexerMsp
 			if(isKeyword(token.value.c_str()))
 			{
 				token.type = KEYWORD;
+				token.line = lineNumber;
 				return token;
 			}
 			else
 			{
 				token.type = IDENTIFIER;
+				token.line = lineNumber;
 				return token;
 			}
 		}
 		else if(isdigit(ch))
 		{
-			bool hasDot = false;	// ÅĞ¶ÏÊÇ·ñÓĞĞ¡Êıµã 
+			bool hasDot = false;	// åˆ¤æ–­æ˜¯å¦æœ‰å°æ•°ç‚¹ 
 			while(true)
 			{
 				ch = readChar();
 				
 				if(hasDot && ch == '.')
 				{
-					// µÚ¶ş¸öĞ¡ÊıµãÁË
+					// ç¬¬äºŒä¸ªå°æ•°ç‚¹äº†
 					token.type = NUMBER;
+					token.line = lineNumber;
 					token.errcode = 1;
 					return token; 
 				}
@@ -110,7 +114,7 @@ namespace LexerMsp
 				{
 					token.value = token.value + ch;
 					hasDot = true;
-					continue;	// ±ÜÃâ×ßÏÂÃæµÄÄÇ¸öif 
+					continue;	// é¿å…èµ°ä¸‹é¢çš„é‚£ä¸ªif 
 				}
 				
 				if(isdigit(ch) || ch == '.')
@@ -140,6 +144,7 @@ namespace LexerMsp
 			case ']':
 				token.type = SEPERATOR;
 				token.value = string("") + ch;
+				token.line = lineNumber;
 				return token;
 			case '+': 
 			case '-': 
@@ -151,7 +156,56 @@ namespace LexerMsp
 			case '<': 
 				token.type = OPERATOR;
 				token.value = string("") + ch;
+				token.line = lineNumber;
 				return token;
+			case '\"': {	// å­—ç¬¦ä¸²ï¼æ˜¯ä¸æ˜¯æœ‰ç‚¹æ£˜æ‰‹
+				string result = "\"";
+				while(true)
+				{
+					ch = readChar();
+					if(ch == '\\')	// é‡åˆ°è½¬ä¹‰å­—ç¬¦
+					{
+						ch = readChar();
+						switch(ch)
+						{
+						case '\\':
+							result = result + '\\';
+							break;
+						case 'n':
+							result = result + '\n';
+							break;
+						case 'r':
+							result = result + '\r';
+							break;
+						case '\'':
+							result = result + '\'';
+							break;
+						case '\"':
+							result = result + '\"';
+							break;
+						default:
+							result = result + ch;
+							token.type = STRING;
+							token.value = result;
+							token.line = lineNumber;
+							token.errcode = -4;
+							return token;
+						}
+					}
+					else if(ch == '\"')
+					{
+							result = result + '\"';
+							token.type = STRING;
+							token.value = result;
+							token.line = lineNumber;
+							return token;
+					}
+					else
+					{
+						result = result + ch;
+					}
+				}
+			}
 			case '/': {
 				if(readChar() == '/')
 				{
@@ -167,6 +221,7 @@ namespace LexerMsp
 				}
 				// ungetChar(ch);
 				token.type = OPERATOR;
+				token.line = lineNumber;
 				return token;
 			}
 				
@@ -174,20 +229,35 @@ namespace LexerMsp
 				token.type = EMPTY;
 				token.value = string("") + ch;
 				token.errcode = 2;
+				token.line = lineNumber;
 				return token;
 			}
 		}
 		token.type = EMPTY;
 		token.value = "<why reaching here?>";
 		token.errcode = -1;
+		token.line = lineNumber;
 		return token;
 	}
-	// ÊÇ·ñÊÇ¹Ø¼ü×Ö
+	// æ˜¯å¦æ˜¯å…³é”®å­—
 	bool Lexer::isKeyword(const char *tk)
 	{
 		static const char * keywords[] = {
-			"int", "float", "if", "else", "elseif"
-			"return", "while", "for", "true", "false"
+			// æ•°æ®ç±»å‹ 
+			"int", "int64", "byte", "uint", "uint64", "int8", "int16", "uint16",
+			"float", "double", /* å®½å­—ç¬¦ */"char", "const"
+			// æ§åˆ¶æµç¨‹ 
+			"while", "for", "if", "elseif", "else", "switch", "case", "default",
+			"repeat", "until", "break", "return",
+			// å¸ƒå°”é€»è¾‘
+			"and", "not", "or", "true", "false",
+			// é¢å‘å¯¹è±¡
+			"class", "public", "private", "protected", "extends", "this",
+			"super", "null", "typeof", "static", "new"
+			// å¼‚å¸¸
+			"throw", "try", "catch", "ensure",
+			// æ¨¡å—
+			"module", "export", "import" 
 		};
 		for(int i = 0; i < sizeof(keywords) / sizeof(const char*); ++i)
 		{
@@ -198,8 +268,8 @@ namespace LexerMsp
 		}
 		return false;
 	} 
-	// ´¦ÀíÖîÈç++£¬--£¬==µÈ²Ù×÷·û
-	// Ö»ÄÜºÍread()ÁªºÏÊ¹ÓÃ 
+	// å¤„ç†è¯¸å¦‚++ï¼Œ--ï¼Œ==ç­‰æ“ä½œç¬¦
+	// åªèƒ½å’Œread()è”åˆä½¿ç”¨ 
 	Token Lexer::processDoubleOperator(char op)
 	{
 		Token token;
@@ -213,15 +283,16 @@ namespace LexerMsp
 			ungetChar(op);
 		}
 		token.type = OPERATOR;
+		token.line = lineNumber;
 		return token;
 	} 
-	// ¶ÁÈ¡ÏÂÒ»¸ö×Ö·û 
+	// è¯»å–ä¸‹ä¸€ä¸ªå­—ç¬¦ 
 	char Lexer::readChar()
 	{
 		char c = buf[index++];
 		return c;
 	}
-	// ×Ö·û»ØËİ 
+	// å­—ç¬¦å›æº¯ 
 	void Lexer::ungetChar(char c)
 	{
 		if(c != EOF)
