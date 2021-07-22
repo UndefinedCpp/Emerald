@@ -1,4 +1,4 @@
-//  Emerald Scriptting Language, UndefinedCpp
+//  Emerald Language, UndefinedCpp
 //    Copyright (C) 2021-2026  UndefinedCpp
 //
 //    This program is free software: you can redistribute it and/or modify
@@ -21,8 +21,7 @@
 #ifndef EMERALD_LEXER_LEXER_CPP
 #define EMERALD_LEXER_LEXER_CPP
 
-// Override string+char, so that this is avaliable:
-//     l.read().value + 'L'
+// 这样的话可以轻松拼接string和char 
 std::string operator+ (std::string s, char c)
 {
 	std::string temp = " ";
@@ -51,6 +50,9 @@ namespace LexerMsp
 		Token token;
 		char ch;
 		
+		// 重要，以免误判 
+		token.errcode = 0xff; 
+		
 		while(true)
 		{
 			ch = readChar();	// 读出一个字符
@@ -58,6 +60,7 @@ namespace LexerMsp
 			{
 				token.type = EMPTY;
 				token.value = string("<end>");
+				token.errcode = 0xff; 
 				token.line = lineNumber;
 				return token;
 			} 
@@ -73,22 +76,25 @@ namespace LexerMsp
 		
 		token.value = token.value + ch;
 		
-		if(isalpha(ch))	// 如果是字母 
+		if(isalpha(ch) || ch == '_')	// 如果是字母 
 		{
-			// 读取字符，是字母或数字 
-			while(ch = readChar(), isalnum(ch))
+			// 读取字符，是字母或数字或下划线 
+			while(ch = readChar(), isalnum(ch) || ch == '_')
 			{
 				token.value = token.value + ch;
 			}
 			ungetChar(ch);
-			if(isKeyword(token.value.c_str()))
+			// 采用逻辑短路来做一个小小的优化 
+			if((ch != '_' && ('0' <= ch && ch <= '9')) && isKeyword(token.value.c_str()))
 			{
+				// 是关键字 
 				token.type = KEYWORD;
 				token.line = lineNumber;
 				return token;
 			}
 			else
 			{
+				// 是标识符 
 				token.type = IDENTIFIER;
 				token.line = lineNumber;
 				return token;
@@ -106,6 +112,7 @@ namespace LexerMsp
 					// 第二个小数点了
 					token.type = NUMBER;
 					token.line = lineNumber;
+					// 出错 
 					token.errcode = 1;
 					return token; 
 				}
@@ -142,6 +149,9 @@ namespace LexerMsp
 			case '}':
 			case '[':
 			case ']':
+			case ':':
+			case '.':
+				// 分隔符 
 				token.type = SEPERATOR;
 				token.value = string("") + ch;
 				token.line = lineNumber;
@@ -149,13 +159,26 @@ namespace LexerMsp
 			case '+': 
 			case '-': 
 			case '=':
-				return processDoubleOperator(ch);
 			case '*':
 			case '%':
 			case '>':
 			case '<': 
+				// 处理类似+=, -=, *=, /=等的 
+				if(readChar() == '=')
+				{
+					token.value = string("") + ch + '=';
+				}
+				ungetChar(ch);
+				// 处理类似于++, --, **
+				if(readChar() == ch)
+				{
+					token.value = string("") + ch + ch;
+				}
+				else
+				{
+					ungetChar(ch);
+				}
 				token.type = OPERATOR;
-				token.value = string("") + ch;
 				token.line = lineNumber;
 				return token;
 			case '\"': {	// 字符串！是不是有点棘手
@@ -192,20 +215,17 @@ namespace LexerMsp
 							return token;
 						}
 					}
-					else if(ch == '\"')
-					{
-							result = result + '\"';
-							token.type = STRING;
-							token.value = result;
-							token.line = lineNumber;
-							return token;
-					}
 					else
 					{
 						result = result + ch;
 					}
 				}
 			}
+			case '\'':	// 字符，注意是宽字符 
+				string result = "\'";
+				ch = readChar();
+				
+				break;
 			case '/': {
 				if(readChar() == '/')
 				{
@@ -213,16 +233,20 @@ namespace LexerMsp
 					{
 					}
 					ungetChar(0);
+					token.value = "<comment>";
+					token.line = lineNumber;
+					return token;
 				}
 				else
 				{
-					token.value = "-";
+					token.value = "/";
 					ungetChar(ch);
+					token.type = OPERATOR;
+					token.line = lineNumber;
+					return token;
 				}
 				// ungetChar(ch);
-				token.type = OPERATOR;
-				token.line = lineNumber;
-				return token;
+				
 			}
 				
 			default:
@@ -248,7 +272,7 @@ namespace LexerMsp
 			"float", "double", /* 宽字符 */"char", "const"
 			// 控制流程 
 			"while", "for", "if", "elseif", "else", "switch", "case", "default",
-			"repeat", "until", "break", "return",
+			"repeat", "until", "break", "return", "static",
 			// 布尔逻辑
 			"and", "not", "or", "true", "false",
 			// 面向对象
